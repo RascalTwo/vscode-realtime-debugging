@@ -33,6 +33,18 @@ export class Extension {
 			i.show();
 		}
 
+		const trackedLogpoints: {line: number, logMessage: string, path: string}[] = [];
+
+		const variablesReferencesOutputting: {[variablesReference: number]: {line: number, path: string}} = {};
+		const requestedVariables: {[seq: number]: {line: number, path: string}} = {};
+
+		const outputTheThing = (path: string, line: number, output: string) => {
+			const pathUri = vscode.Uri.file(path);
+
+			this.executionHightlighter.highlight(pathUri, line);
+			this.logResultDecorator.log(pathUri, line, output);
+		}
+
 		this.dispose.track(
 			vscode.debug.registerDebugAdapterTrackerFactory("*", {
 				createDebugAdapterTracker: (session) => ({
@@ -43,6 +55,12 @@ export class Extension {
 						}
 					},
 					onDidSendMessage: (message) => {
+						if (message.command === 'variables' && message.type === 'response' && message.success){
+							const request = requestedVariables[message.request_seq];
+							if (request === undefined) return;
+							// @ts-ignore
+							outputTheThing(request.path, request.line - 1, message.body.variables.map(variable => variable.value).join('\n'));
+						}
 						if (
 							message.event === "output" &&
 							"body" in message &&
@@ -51,14 +69,23 @@ export class Extension {
 							const body = message.body;
 							const output = body.output;
 							const source = body.source;
+							if (!output && body.variablesReference){
+								variablesReferencesOutputting[body.variablesReference] = { line: body.line, path: body.source.path };
+								return;
+							}
 
-							const path = source.path;
-							const line = body.line - 1;
+							if (!source.path) {
+								const foundLogpoint = trackedLogpoints.find(point => {
+									const { logMessage } = point;
+									const regex = logMessage.replace(/{.*}/, '.*');
+									return !!output.match(regex);
+								});
+								if (!foundLogpoint) return;
+								Object.assign(source, { path: foundLogpoint.path });
+								Object.assign(body, { line: foundLogpoint.line })
+							}
 
-							const pathUri = vscode.Uri.file(path);
-
-							this.executionHightlighter.highlight(pathUri, line);
-							this.logResultDecorator.log(pathUri, line, output);
+							outputTheThing(source.path, body.line - 1, output);
 						}
 
 						if (this.log) {
@@ -73,7 +100,22 @@ export class Extension {
 								"<- " + JSON.stringify(message)
 							);
 						}
+
+						if (message.command === 'setBreakpoints') trackedLogpoints.push(...message.arguments.breakpoints
+							// @ts-ignore
+							.filter(breakpoint => 'logMessage' in breakpoint)
+							// @ts-ignore
+							.map(({ line, logMessage }) => ({ line, logMessage, path: message.arguments.source.path }))
+						);
+
+						if (message.command === 'variables' && message.type === 'request'){
+							const variablesReference = variablesReferencesOutputting[message.arguments.variablesReference];
+							if (variablesReference !== undefined) requestedVariables[message.seq] = variablesReference;
+						}
 					},
+					onWillStopSession: () => {
+						trackedLogpoints.length = 0;
+					}
 				}),
 			})
 		);
