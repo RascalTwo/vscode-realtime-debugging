@@ -3,7 +3,7 @@
 	"private": true,
 	"displayName": "Real-Time Debugging",
 	"description": "This extension visualizes how your code is being executed.",
-	"version": "0.4.0-rascaltwo-alpha",
+	"version": "0.4.1-rascaltwo-alpha",
 	"license": "GPL-3.0",
 	"publisher": "hediet",
 	"author": {

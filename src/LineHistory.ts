@@ -5,6 +5,7 @@ import {
 	workspace,
 	MarkdownString,
 	DecorationOptions,
+	TextEditorDecorationType,
 } from "vscode";
 
 export class LogResultDecorator {
@@ -14,8 +15,30 @@ export class LogResultDecorator {
 		string,
 		{ uri: Uri; lines: Map<number, LineHistory> }
 	>();
+	private decorationType!: TextEditorDecorationType;
+
+	updateDecorationType(){
+		if (this.decorationType){
+			this.clear();
+			this.decorationType.dispose();
+		}
+		this.decorationType = this.dispose.track(
+			window.createTextEditorDecorationType({
+				after: {
+					color: workspace.getConfiguration('realtime-debugging.line-history').get('color', 'gray'),
+					margin: workspace.getConfiguration('editor').get('fontSize', 20) + 'px'
+				},
+			})
+		);
+	}
 
 	constructor() {
+		this.dispose.track(workspace.onDidChangeConfiguration(e => {
+			if (!e.affectsConfiguration('realtime-debugging.line-history.color') && !e.affectsConfiguration('editor.fontSize')) return;
+
+			this.updateDecorationType();
+		}));
+		this.updateDecorationType();
 		this.dispose.track(
 			workspace.onDidChangeTextDocument((evt) => {
 				this.map.delete(evt.document.uri.toString());
@@ -50,27 +73,21 @@ export class LogResultDecorator {
 	}
 
 	private updateDecorations() {
-		const decorationType = this.dispose.track(window.createTextEditorDecorationType({
-			after: {
-				color: workspace.getConfiguration('realtime-debugging.line-history').get('color', 'gray'),
-				margin: workspace.getConfiguration('editor').get('fontSize', 20) + 'px'
-			},
-		}));
 		for (const editor of window.visibleTextEditors) {
 			const entry = this.map.get(editor.document.uri.toString());
 			if (!entry) {
-				editor.setDecorations(decorationType, []);
+				editor.setDecorations(this.decorationType, []);
 				continue;
 			}
 
 			editor.setDecorations(
-				decorationType,
+				this.decorationType,
 				[...entry.lines.values()].map((history) => {
 					const range = editor.document.lineAt(history.line).range;
 					const hoverMessage = new MarkdownString();
 					hoverMessage.isTrusted = true;
 					for (const h of history.history.slice().reverse()) {
-						hoverMessage.appendMarkdown(`* ${h}`);
+						hoverMessage.appendMarkdown(`${h}`);
 					}
 					/*const params = encodeURIComponent(
 						JSON.stringify({ stepId: o.id } as RunCmdIdArgs)
