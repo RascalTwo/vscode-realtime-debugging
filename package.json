@@ -3,7 +3,7 @@
 	"private": true,
 	"displayName": "Real-Time Debugging",
 	"description": "This extension visualizes how your code is being executed.",
-	"version": "0.2.0-rascaltwo-alpha",
+	"version": "0.3.0-rascaltwo-alpha",
 	"license": "GPL-3.0",
 	"publisher": "hediet",
 	"author": {
@@ -40,7 +40,44 @@
 		"url": "https://github.com/hediet/vscode-realtime-debugging/issues"
 	},
 	"main": "./out/extension",
-	"contributes": {},
+	"contributes": {
+		"configuration": {
+			"title": "Realtime Debugging",
+			"properties": {
+				"realtime-debugging.highlight.enabled": {
+					"type": "number",
+					"default": true,
+					"description": "Highlight lines ran with output when their ran in the debugger"
+				},
+				"realtime-debugging.highlight.maximum": {
+					"type": "number",
+					"default": 10,
+					"description": "Maximum number of highlights to have at once"
+				},
+				"realtime-debugging.highlight.fade": {
+					"type": "number",
+					"default": 1000,
+					"description": "Milliseconds until a highlight fades away"
+				},
+				"realtime-debugging.highlight.colors": {
+					"type": "array",
+					"default": [
+						"#37afa9",
+						"#63b19e",
+						"#80b393",
+						"#97b488",
+						"#abb67d",
+						"#beb771",
+						"#cfb965",
+						"#dfba57",
+						"#efbb49",
+						"#febc38"
+					],
+					"description": "Colors to highlight each time the line is highlighted before the fade time"
+				}
+			}
+		}
+	},
 	"scripts": {
 		"pub": "vsce publish --yarn",
 		"package": "vsce package --yarn",

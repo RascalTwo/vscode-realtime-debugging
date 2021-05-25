@@ -4,6 +4,7 @@ import {
 	TextEditor,
 	Range,
 	TextEditorDecorationType,
+	workspace
 } from "vscode";
 
 export class ExecutionHighlighter {
@@ -14,50 +15,69 @@ export class ExecutionHighlighter {
 			if (editor.document.uri.toString() !== uri.toString()) {
 				continue;
 			}
-			const range = editor.document.lineAt(line).range;
+			const textLine = editor.document.lineAt(line);
+			const firstChar = textLine.firstNonWhitespaceCharacterIndex;
+			let range = textLine.range;
+			if (firstChar !== range.end.character) range = range.with(range.start.with(undefined, firstChar));
 			this.highlighter.highlight(editor, range);
 		}
 	}
 }
 
 export class Highlighter {
-	private lastHighlight: Highlight | undefined;
+	private highlights: Highlight[] = [];
 
 	highlight(editor: TextEditor, range: Range): void {
-		if (this.lastHighlight) {
-			this.lastHighlight.deprecate();
-		}
-		this.lastHighlight = new Highlight(editor, range, () => {});
+		const existingHighlight = this.highlights.find(highlight => highlight.isEqual(editor, range));
+		if (existingHighlight) return existingHighlight.highlight(editor, range) && undefined;
+
+		this.highlights = this.highlights.filter(highlight => highlight.active);
+		const mostHighlights = workspace.getConfiguration('realtime-debugging.highlight').get('maximum', 10);
+		if (this.highlights.length >= mostHighlights) this.highlights.splice(mostHighlights - 1).forEach(highlight => highlight.dispose());
+
+
+		if (!existingHighlight) this.highlights.push(new Highlight().highlight(editor, range));
 	}
 }
 
 class Highlight {
 	private type: TextEditorDecorationType | undefined;
+	private count: number = 0;
+	private timeout!: NodeJS.Timeout;
+	private editor!: TextEditor;
+	private range!: Range;
 
-	constructor(
-		private readonly textEditor: TextEditor,
-		private readonly range: Range,
-		onHide: () => void
-	) {
-		this.type = window.createTextEditorDecorationType({
-			backgroundColor: "orange",
-		});
-		textEditor.setDecorations(this.type, [range]);
-
-		setTimeout(() => {
-			this.dispose();
-			onHide();
-		}, 1000);
+	get active(){
+		return this.type !== undefined;
 	}
 
-	deprecate() {
+	isEqual(editor: TextEditor, range: Range){
+		if (!this.range.isEqual(range)) return false;
+
+		return this.editor.document.uri.toString() === editor.document.uri.toString();
+	}
+
+	highlight(textEditor: TextEditor, range: Range) {
+		const colors = workspace.getConfiguration('realtime-debugging.highlight').get('colors', '#37afa9');
 		if (this.type) {
 			this.type.dispose();
-			this.type = window.createTextEditorDecorationType({
-				backgroundColor: "yellow",
-			});
-			this.textEditor.setDecorations(this.type, [this.range]);
+			this.count++;
 		}
+		else{
+			this.count = 0;
+		}
+		this.type = window.createTextEditorDecorationType({
+			backgroundColor: colors[Math.min(this.count, colors.length - 1)],
+		});
+		textEditor.setDecorations(this.type, [range]);
+		clearTimeout(this.timeout);
+		this.timeout = setTimeout(() => {
+			this.dispose();
+		}, workspace.getConfiguration('realtime-debugging.highlight').get('fade', 1000));
+
+		this.editor = textEditor;
+		this.range = range;
+		return this;
 	}
 
 	dispose() {
