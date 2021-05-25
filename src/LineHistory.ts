@@ -6,6 +6,7 @@ import {
 	MarkdownString,
 	DecorationOptions,
 	TextEditorDecorationType,
+	commands
 } from "vscode";
 
 export class LogResultDecorator {
@@ -45,6 +46,20 @@ export class LogResultDecorator {
 				this.updateDecorations();
 			})
 		);
+		this.dispose.track(commands.registerTextEditorCommand('realtime-debugging.clear-line-history', (editor, _, args: { line?: number }) => {
+			const entry = this.map.get(editor.document.uri.toString());
+			if (!entry) return this.clear();
+
+			const firstLine = args?.line ?? editor.selection.start.line;
+			const lastLine = args?.line ?? editor.selection.end.line;
+			// If no lines are deleted from history, update decoration, otherwise clear everything
+			return new Array(lastLine + 1 - firstLine)
+					.fill(null)
+					.map((_, i) => entry.lines.delete(firstLine + i))
+					.some(Boolean)
+						? this.updateDecorations()
+						: this.clear();
+		}));
 	}
 
 	public log(uri: Uri, line: number, output: string): void {
@@ -86,9 +101,8 @@ export class LogResultDecorator {
 					const range = editor.document.lineAt(history.line).range;
 					const hoverMessage = new MarkdownString();
 					hoverMessage.isTrusted = true;
-					for (const h of history.history.slice().reverse()) {
-						hoverMessage.appendMarkdown(`${h}`);
-					}
+					hoverMessage.appendMarkdown('* ' + history.history.slice().reverse().join('\n* '));
+					hoverMessage.appendMarkdown(`\n[Clear line](${Uri.parse(`command:realtime-debugging.clear-line-history?${JSON.stringify({ line: history.line })}`)})`);
 					/*const params = encodeURIComponent(
 						JSON.stringify({ stepId: o.id } as RunCmdIdArgs)
 					);*/
