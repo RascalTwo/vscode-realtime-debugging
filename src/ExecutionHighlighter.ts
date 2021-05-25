@@ -11,6 +11,8 @@ export class ExecutionHighlighter {
 	private readonly highlighter = new Highlighter();
 
 	highlight(uri: Uri, line: number): void {
+		if (!workspace.getConfiguration('realtime-debugging.highlight').get('enabled', true)) return;
+
 		for (const editor of window.visibleTextEditors) {
 			if (editor.document.uri.toString() !== uri.toString()) {
 				continue;

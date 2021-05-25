@@ -14,14 +14,6 @@ export class LogResultDecorator {
 		string,
 		{ uri: Uri; lines: Map<number, LineHistory> }
 	>();
-	private readonly decorationType = this.dispose.track(
-		window.createTextEditorDecorationType({
-			after: {
-				color: "gray",
-				margin: "20px",
-			},
-		})
-	);
 
 	constructor() {
 		this.dispose.track(
@@ -33,6 +25,8 @@ export class LogResultDecorator {
 	}
 
 	public log(uri: Uri, line: number, output: string): void {
+		if (!workspace.getConfiguration('realtime-debugging.line-history').get('enabled', true)) return;
+
 		let entry = this.map.get(uri.toString());
 		if (!entry) {
 			entry = { uri, lines: new Map() };
@@ -56,15 +50,21 @@ export class LogResultDecorator {
 	}
 
 	private updateDecorations() {
+		const decorationType = this.dispose.track(window.createTextEditorDecorationType({
+			after: {
+				color: workspace.getConfiguration('realtime-debugging.line-history').get('color', 'gray'),
+				margin: workspace.getConfiguration('editor').get('fontSize', 20) + 'px'
+			},
+		}));
 		for (const editor of window.visibleTextEditors) {
 			const entry = this.map.get(editor.document.uri.toString());
 			if (!entry) {
-				editor.setDecorations(this.decorationType, []);
+				editor.setDecorations(decorationType, []);
 				continue;
 			}
 
 			editor.setDecorations(
-				this.decorationType,
+				decorationType,
 				[...entry.lines.values()].map((history) => {
 					const range = editor.document.lineAt(history.line).range;
 					const hoverMessage = new MarkdownString();

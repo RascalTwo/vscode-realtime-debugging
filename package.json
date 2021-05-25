@@ -3,7 +3,7 @@
 	"private": true,
 	"displayName": "Real-Time Debugging",
 	"description": "This extension visualizes how your code is being executed.",
-	"version": "0.3.0-rascaltwo-alpha",
+	"version": "0.4.0-rascaltwo-alpha",
 	"license": "GPL-3.0",
 	"publisher": "hediet",
 	"author": {
@@ -44,8 +44,18 @@
 		"configuration": {
 			"title": "Realtime Debugging",
 			"properties": {
+				"realtime-debugging.line-history.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show all the results of each output line to the right of, and on hover"
+				},
+				"realtime-debugging.line-history.color": {
+					"type": "string",
+					"default": "gray",
+					"description": "Color of LineHistory text"
+				},
 				"realtime-debugging.highlight.enabled": {
-					"type": "number",
+					"type": "boolean",
 					"default": true,
 					"description": "Highlight lines ran with output when their ran in the debugger"
 				},
